@@ -22,7 +22,12 @@ fn run_glommio() {
                 let receiver = receiver.clone();
                 glommio::spawn_local(flume_recv(id, receiver)).detach();
             }
-            flume_send(sender, true).await;
+            for _id in [4, 5] {
+                let sender = sender.clone();
+                glommio::spawn_local(flume_send_glommio(sender)).detach();
+            }
+            let sender = sender.clone();
+            flume_send_glommio(sender).await;
         })
         .unwrap()
         .join()
@@ -39,21 +44,32 @@ fn run_tokio() {
                 let receiver = receiver.clone();
                 tokio::spawn(flume_recv(id, receiver));
             }
-            flume_send(sender, false).await;
+            for _id in [4, 5] {
+                let sender = sender.clone();
+                tokio::spawn(flume_send_tokio(sender));
+            }
+            let sender = sender.clone();
+            flume_send_tokio(sender).await;
         });
 }
 
-async fn flume_send(sender: Sender<usize>, is_glommio: bool) {
+async fn flume_send_glommio(sender: Sender<usize>) {
     loop {
         for idx in 0.. {
             if let Err(err) = sender.send_async(idx).await {
                 panic!("send error: {:?}", err);
             }
-            if is_glommio {
-                glommio::timer::sleep(Duration::from_secs(1)).await;
-            } else {
-                tokio::time::sleep(Duration::from_secs(1)).await;
+            glommio::timer::sleep(Duration::from_secs(1)).await;
+        }
+    }
+}
+async fn flume_send_tokio(sender: Sender<usize>) {
+    loop {
+        for idx in 0.. {
+            if let Err(err) = sender.send_async(idx).await {
+                panic!("send error: {:?}", err);
             }
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
 }
