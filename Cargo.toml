@@ -6,3 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+flume = { version = "0.10", features = ["async"] }
+glommio = { version = "0.7.0" }
+tokio = { version = "1.23.0", features = ["full"] }
