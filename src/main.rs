@@ -18,7 +18,7 @@ fn run_glommio_pool() {
     let cpu_set = CpuSet::online().expect("online cpus");
     let cpu_num = num_cpus::get();
     let placement = PoolPlacement::MaxSpread(cpu_num, Some(cpu_set));
-    let (sender, receiver) = bounded::<usize>(2);
+    let (sender, receiver) = bounded::<(usize, usize)>(2);
     LocalExecutorPoolBuilder::new(placement)
         .on_all_shards(|| async move {
             println!("Starting glommio runtime...");
@@ -40,7 +40,7 @@ fn run_glommio() {
     LocalExecutorBuilder::new(Placement::Fixed(0))
         .spawn(|| async move {
             println!("Starting glommio runtime...");
-            let (sender, receiver) = bounded::<usize>(2);
+            let (sender, receiver) = bounded::<(usize, usize)>(2);
             for id in [1, 2, 3] {
                 let receiver = receiver.clone();
                 glommio::spawn_local(flume_recv(id, receiver)).detach();
@@ -61,7 +61,7 @@ fn run_tokio() {
         .unwrap()
         .block_on(async move {
             println!("Starting tokio runtime...");
-            let (sender, receiver) = bounded::<usize>(2);
+            let (sender, receiver) = bounded::<(usize, usize)>(2);
             for id in [1, 2, 3] {
                 let receiver = receiver.clone();
                 tokio::spawn(flume_recv(id, receiver));
@@ -74,22 +74,20 @@ fn run_tokio() {
         });
 }
 
-async fn flume_send_glommio(id: usize, sender: Sender<usize>) {
+async fn flume_send_glommio(id: usize, sender: Sender<(usize, usize)>) {
     loop {
-        for n in 0.. {
-            let number = n * 1000 + id;
-            if let Err(err) = sender.send_async(number).await {
+        for n in 0usize.. {
+            if let Err(err) = sender.send_async((id, n)).await {
                 panic!("send error: {:?}", err);
             }
             glommio::timer::sleep(Duration::from_secs(1)).await;
         }
     }
 }
-async fn flume_send_tokio(id: usize, sender: Sender<usize>) {
+async fn flume_send_tokio(id: usize, sender: Sender<(usize, usize)>) {
     loop {
-        for n in 0.. {
-            let number = n * 1000 + id;
-            if let Err(err) = sender.send_async(number).await {
+        for n in 0usize.. {
+            if let Err(err) = sender.send_async((id, n)).await {
                 panic!("send error: {:?}", err);
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -97,12 +95,12 @@ async fn flume_send_tokio(id: usize, sender: Sender<usize>) {
     }
 }
 
-async fn flume_recv(id: usize, receiver: Receiver<usize>) {
+async fn flume_recv(id: usize, receiver: Receiver<(usize, usize)>) {
     loop {
-        let value = match receiver.recv_async().await {
+        let (sender_id, value) = match receiver.recv_async().await {
             Ok(value) => value,
             Err(err) => panic!("[id:{}] recv error: {:?}", id, err),
         };
-        println!("[id:{}] received value: {}", id, value);
+        println!("[id:{}] received value: {} from {}", id, value, sender_id);
     }
 }
