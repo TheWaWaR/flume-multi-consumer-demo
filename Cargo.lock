@@ -207,6 +207,7 @@ version = "0.1.0"
 dependencies = [
  "flume",
  "glommio",
+ "num_cpus",
  "tokio",
 ]
 

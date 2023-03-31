@@ -9,3 +9,5 @@ edition = "2021"
 flume = { version = "0.10", features = ["async"] }
 glommio = { version = "0.7.0" }
 tokio = { version = "1.23.0", features = ["full"] }
+# monoio = { version = "0.1.0" }
+num_cpus = "1.14.0"

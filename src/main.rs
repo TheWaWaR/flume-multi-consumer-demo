@@ -2,15 +2,39 @@ use std::env;
 use std::time::Duration;
 
 use flume::{bounded, Receiver, Sender};
-use glommio::{LocalExecutorBuilder, Placement};
+use glommio::{CpuSet, LocalExecutorBuilder, LocalExecutorPoolBuilder, Placement, PoolPlacement};
 
 fn main() {
     let mut args = env::args();
     match args.nth(1).unwrap().as_str() {
+        "glommio-pool" => run_glommio_pool(),
         "glommio" => run_glommio(),
         "tokio" => run_tokio(),
         action => panic!("invalid action: {}", action),
     }
+}
+
+fn run_glommio_pool() {
+    let cpu_set = CpuSet::online().expect("online cpus");
+    let cpu_num = num_cpus::get();
+    let placement = PoolPlacement::MaxSpread(cpu_num, Some(cpu_set));
+    let (sender, receiver) = bounded::<usize>(2);
+    LocalExecutorPoolBuilder::new(placement)
+        .on_all_shards(|| async move {
+            println!("Starting glommio runtime...");
+            for id in [1, 2, 3] {
+                let receiver = receiver.clone();
+                glommio::spawn_local(flume_recv(id, receiver)).detach();
+            }
+            for _id in 0..5 {
+                let sender = sender.clone();
+                glommio::spawn_local(flume_send_glommio(sender)).detach();
+            }
+            let sender = sender.clone();
+            flume_send_glommio(sender).await;
+        })
+        .unwrap()
+        .join_all();
 }
 
 fn run_glommio() {
@@ -22,7 +46,7 @@ fn run_glommio() {
                 let receiver = receiver.clone();
                 glommio::spawn_local(flume_recv(id, receiver)).detach();
             }
-            for _id in [4, 5] {
+            for _id in 0..5 {
                 let sender = sender.clone();
                 glommio::spawn_local(flume_send_glommio(sender)).detach();
             }
@@ -44,7 +68,7 @@ fn run_tokio() {
                 let receiver = receiver.clone();
                 tokio::spawn(flume_recv(id, receiver));
             }
-            for _id in [4, 5] {
+            for _id in 0..5 {
                 let sender = sender.clone();
                 tokio::spawn(flume_send_tokio(sender));
             }
