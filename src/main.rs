@@ -101,6 +101,9 @@ async fn flume_recv(id: usize, receiver: Receiver<(usize, usize)>) {
             Ok(value) => value,
             Err(err) => panic!("[id:{}] recv error: {:?}", id, err),
         };
-        println!("[id:{}] received value: {} from {}", id, value, sender_id);
+        println!(
+            "[receiver#{}] received value: {} from {}",
+            id, value, sender_id
+        );
     }
 }
